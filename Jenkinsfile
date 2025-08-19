@@ -1,18 +1,17 @@
 pipeline {
     agent any
 
-        environment {
+    environment {
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
-        
-       
         stage('Docker Build') {
             steps {
                 sh "docker build . -t gopichandmiryala/hiringapp:$BUILD_NUMBER"
             }
         }
+
         stage('Docker Push') {
             steps {
                 withCredentials([string(credentialsId: 'docker-hub', variable: 'hubPwd')]) {
@@ -21,27 +20,33 @@ pipeline {
                 }
             }
         }
-        stage('Checkout K8S manifest SCM'){
+
+        stage('Checkout K8S manifest SCM') {
             steps {
-              git branch: 'main', url: 'https://github.com/gopichandmiryala/Hiring-app-argocd.git'
+                git branch: 'main', url: 'https://github.com/gopichandmiryala/Hiring-app-argocd.git'
             }
-        } 
-        stage('Update K8S manifest & push to Repo'){
+        }
+
+        stage('Update K8S manifest & push to Repo') {
             steps {
-                script{
-                   withCredentials([usernamePassword(credentialsId: 'Github_server', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) { 
+                script {
+                    withCredentials([string(credentialsId: 'github-pat', variable: 'GIT_PAT')]) {
                         sh '''
                         cat /var/lib/jenkins/workspace/$JOB_NAME/dev/deployment.yaml
                         sed -i "s/5/${BUILD_NUMBER}/g" /var/lib/jenkins/workspace/$JOB_NAME/dev/deployment.yaml
                         cat /var/lib/jenkins/workspace/$JOB_NAME/dev/deployment.yaml
+
+                        git config user.email "jenkins@example.com"
+                        git config user.name "Jenkins CI"
+
                         git add .
-                        git commit -m 'Updated the deploy yaml | Jenkins Pipeline'
-                        git remote -v
-                        git push https://$GIT_USERNAME:$GIT_PASSWORD@github.com/betawins/Hiring-app-argocd.git main
-                        '''                        
-                      }
-                  }
-            }   
-        }
+                        git commit -m 'Updated the deploy yaml | Jenkins Pipeline' || echo "No changes to commit"
+                        git remote set-url origin https://$GIT_PAT@github.com/gopichandmiryala/Hiring-app-argocd.git
+                        git push origin main
+                        '''
+                    }
+                }
             }
-} 
+        }
+    }
+}
